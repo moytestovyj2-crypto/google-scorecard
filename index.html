@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: transparent;
+    }
+
+    .scorecard {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      text-align: center;
+      min-width: 200px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      font-size: 36px;
+      font-weight: 700;
+      color: #202124;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .delta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .delta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .positive { 
+      color: #137333;
+      background: #e6f4ea;
+    }
+
+    .negative { 
+      color: #c5221f;
+      background: #fce8e6;
+    }
+
+    .neutral { 
+      color: #5f6368;
+      background: #f1f3f4;
+    }
+
+    .arrow {
+      font-size: 12px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="scorecard">
+    <div class="label" id="label">Metric</div>
+    <div class="value" id="value">—</div>
+    <div class="delta" id="delta"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/dscc/latest/dscc.min.js"></script>
+  <script>
+    // ===== CONFIG PANEL =====
+    const config = dscc.createConfig();
+    
+    // 1. Primary Metric
+    config.addMetricSelector('metric', 'Primary field', { 
+      min: 1, 
+      max: 1 
+    });
+    
+    // 2. Toggle Comparison
+    config.addCheckbox('enableComparison', 'Comparison date range', {
+      defaultValue: false
+    });
+    
+    // 3. Select Comparison Type
+    config.addSelect('comparisonType', 'Comparison type', [
+      { label: 'Previous period', value: 'previous' },
+      { label: 'Month over Month (MoM)', value: 'MoM' },
+      { label: 'Year over Year (YoY)', value: 'YoY' }
+    ], { 
+      defaultValue: 'previous'
+    });
+
+    // ===== RENDER FUNCTION =====
+    function render() {
+      const data = dscc.getData();
+      const cfg = dscc.getComponents()[0].config;
+      
+      const table = data.tables.DEFAULT;
+      if (!table || table.length === 0) {
+        document.getElementById('value').textContent = 'No data';
+        return;
+      }
+
+      // Получаем ключи метрик
+      const row = table[0];
+      const keys = Object.keys(row);
+      const metricKey = keys[0]; // Первая метрика
+      
+      // Форматирование чисел
+      const formatNum = (n) => {
+        return new Intl.NumberFormat('ru-RU', {
+          maximumFractionDigits: 2,
+          minimumFractionDigits: 0
+        }).format(n);
+      };
+
+      // Когда Comparison включен в настройках источника данных,
+      // Looker Studio добавляет строки с префиксом или суффиксом
+      // Ищем текущий и предыдущий период
+      
+      let current = 0;
+      let previous = 0;
+
+      if (cfg.enableComparison) {
+        // Ищем строки с данными за текущий и предыдущий период
+        table.forEach(row => {
+          const rowKeys = Object.keys(row);
+          const value = parseFloat(row[rowKeys[0]]) || 0;
+          
+          // Looker Studio добавляет метаданные о периоде
+          // Проверяем наличие поля comparison или аналогичного
+          if (rowKeys.length > 1) {
+            // Если есть второе поле (comparison dimension)
+            const comparisonField = rowKeys[1];
+            if (row[comparisonField] === 'previous' || row[comparisonField]?.includes('previous')) {
+              previous = value;
+            } else {
+              current = value;
+            }
+          } else {
+            // Если только одно поле - берем как текущее
+            current = value;
+          }
+        });
+      } else {
+        // Без сравнения - просто берем первое значение
+        current = parseFloat(row[metricKey]) || 0;
+      }
+
+      // Отображаем основное значение
+      document.getElementById('value').textContent = formatNum(current);
+      document.getElementById('label').textContent = metricKey;
+
+      const deltaDiv = document.getElementById('delta');
+      deltaDiv.innerHTML = '';
+
+      // Если сравнение выключено - ничего не показываем
+      if (!cfg.enableComparison || previous === 0 && current === 0) {
+        return;
+      }
+
+      // Считаем изменения
+      const absolute = current - previous;
+      const relative = previous !== 0 ? (absolute / previous) * 100 : 0;
+
+      // Определяем цвет и стрелку
+      const isPositive = absolute > 0;
+      const isNegative = absolute < 0;
+      const colorClass = isPositive ? 'positive' : (isNegative ? 'negative' : 'neutral');
+      const arrow = isPositive ? '▲' : (isNegative ? '▼' : '●');
+
+      // Форматируем значения
+      const absText = isPositive ? `+${formatNum(absolute)}` : formatNum(absolute);
+      const relText = isPositive ? `+${formatNum(relative)}%` : `${formatNum(relative)}%`;
+
+      // Создаем элементы
+      const absSpan = document.createElement('div');
+      absSpan.className = `delta-item ${colorClass}`;
+      absSpan.innerHTML = `<span class="arrow">${arrow}</span><span>${absText}</span>`;
+
+      const relSpan = document.createElement('div');
+      relSpan.className = `delta-item ${colorClass}`;
+      relSpan.innerHTML = `<span>${relText}</span>`;
+
+      deltaDiv.appendChild(absSpan);
+      deltaDiv.appendChild(relSpan);
+    }
+
+    // Подписываемся на обновления
+    dscc.render = render;
+    dscc.subscribeToData(render, { transform: dscc.objectTransform });
+  </script>
+</body>
+</html>

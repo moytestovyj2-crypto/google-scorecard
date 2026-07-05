@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 2,
+  "name": "Custom Scorecard with Delta",
+  "organization": "Your Name",
+  "description": "Scorecard showing absolute and relative change",
+  "logoUrl": "",
+  "organizationUrl": "",
+  "termsOfServiceUrl": "",
+  "supportUrl": "",
+  "components": {
+    "customScorecard": {
+      "name": "Custom Scorecard",
+      "description": "Scorecard with MoM/YoY comparison",
+      "iconUrl": "",
+      "resources": [
+        {
+          "url": "https://github.com/moytestovyj2-crypto/google-scorecard/index.html"
+        }
+      ]
+    }
+  }
+}
